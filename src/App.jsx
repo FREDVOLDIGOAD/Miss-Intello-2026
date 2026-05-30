@@ -277,19 +277,18 @@ export default function App() {
                     <input
                       type="number"
                       min="1"
-                      max="50"
                       value={voteCount}
                       onChange={(e) => {
                         const val = parseInt(e.target.value);
-                        if (!isNaN(val) && val >= 1 && val <= 50) setVoteCount(val);
+                        if (!isNaN(val) && val >= 1) setVoteCount(val);
                       }}
                       disabled={paymentLoading}
                       className="flex-1 text-center bg-transparent text-white text-2xl font-bold focus:outline-none"
                     />
                     <button
                       type="button"
-                      onClick={() => setVoteCount(v => Math.min(50, v + 1))}
-                      disabled={paymentLoading || voteCount >= 50}
+                      onClick={() => setVoteCount(v => v + 1)}
+                      disabled={paymentLoading}
                       className="w-10 h-10 rounded-lg bg-white/10 hover:bg-pink-600/30 text-white font-bold text-lg flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       +
