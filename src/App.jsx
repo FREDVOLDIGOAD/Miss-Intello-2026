@@ -20,6 +20,8 @@ export default function App() {
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [pendingReference, setPendingReference] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [network, setNetwork] = useState('TMONEY'); // TMONEY ou FLOOZ
   const [voteCount, setVoteCount] = useState(1); // Nombre de votes choisi
@@ -51,37 +53,46 @@ export default function App() {
   };
 
   const handleVotePayGate = async (candidate, phoneNumber, network, numberOfVotes) => {
-    // network doit être "TMONEY" ou "FLOOZ" exactement (majuscules)
+    if (!candidate) {
+      alert("Aucune candidate sélectionnée.");
+      return false;
+    }
+
     const totalAmount = numberOfVotes * PRICE_PER_VOTE;
 
     const { data, error } = await supabase.functions.invoke('paygate-pay', {
-      body: { 
-        phone: phoneNumber, 
-        amount: totalAmount, 
-        network: network,
+      body: {
+        phone: phoneNumber,
+        amount: totalAmount,
+        network,
         candidateId: candidate.id,
-        voteCount: numberOfVotes
-      }
+        voteCount: numberOfVotes,
+      },
     });
 
     if (error) {
       console.error("Erreur d'appel Edge Function:", error);
-      alert("Impossible de contacter le service de paiement.");
+      alert("Impossible de contacter le service de paiement. Vérifiez votre connexion ou réessayez plus tard.");
       return false;
     }
 
-    // Analyse de la réponse de PayGate selon ton guide
-    if (data.status == 0) {
-      alert(`Transaction enregistrée ! Vous avez voté ${numberOfVotes} fois. Validez sur votre téléphone en tapant votre code PIN.`);
+    if (data?.paymentInitiated === true) {
+      setPendingReference(data.reference || null);
+      alert(`Demande de paiement envoyée ! Vérifiez votre téléphone et confirmez la transaction. Le vote sera comptabilisé une fois le paiement confirmé.`);
       return true;
-    } else if (data.status == 2) {
-      alert("Erreur : Jeton d'authentification invalide.");
-    } else if (data.status == 4) {
-      alert("Erreur : Paramètres invalides (Vérifiez le numéro).");
-    } else {
-      alert("Une erreur inconnue est survenue avec PayGate.");
     }
-    
+
+    const status = data?.status ?? data?.paygateResult?.status;
+    const serverMessage = data?.error || data?.message || "Une erreur inconnue est survenue avec PayGate.";
+
+    if (status === 2) {
+      alert("Erreur PayGate : jeton d'authentification invalide.");
+    } else if (status === 4) {
+      alert("Erreur PayGate : paramètres invalides (vérifiez le numéro et le réseau).");
+    } else {
+      alert(serverMessage);
+    }
+
     return false;
   };
 
@@ -113,7 +124,42 @@ export default function App() {
     }
   };
 
-  const totalVotes = candidates.reduce((sum, c) => sum + (c.votes || 0), 0);
+  const verifyPaygateTransaction = async () => {
+    if (!pendingReference) {
+      alert('Aucune transaction en attente à vérifier.');
+      return;
+    }
+
+    setVerifyLoading(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('paygate-verify', {
+        body: {
+          txReference: pendingReference,
+        },
+      });
+
+      if (error) {
+        console.error('Erreur d’appel de vérification :', error);
+        alert('Impossible de vérifier la transaction. Réessayez plus tard.');
+        return;
+      }
+
+      if (data?.success) {
+        alert('Paiement confirmé. Le vote a été comptabilisé.');
+        setPendingReference(null);
+        fetchCandidates();
+        return;
+      }
+
+      alert(data?.error || 'La vérification du paiement a échoué.');
+    } catch (err) {
+      console.error('Erreur de vérification PayGate :', err);
+      alert(`Erreur lors de la vérification du paiement : ${err.message || 'Réessayez plus tard.'}`);
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
 
   return (
     <>
@@ -134,6 +180,24 @@ export default function App() {
               <img src="WhatsApp_Image_2026-03-30_at_20.55.09-removebg-preview.png" alt="Miss Intello" />
             </div>
           </header>
+
+          {pendingReference && (
+            <div className="max-w-4xl mx-auto my-6 rounded-2xl border border-pink-400/30 bg-pink-500/10 p-5 text-pink-100 shadow-lg">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <strong>Paiement en attente</strong>
+                  <p className="text-sm text-pink-200 mt-1">Référence : {pendingReference}. Si le paiement est déjà confirmé, cliquez sur Vérifier.</p>
+                </div>
+                <button
+                  onClick={verifyPaygateTransaction}
+                  disabled={verifyLoading}
+                  className="btn-main inline-flex items-center justify-center px-5 py-3"
+                >
+                  {verifyLoading ? 'Vérification...' : 'Vérifier le paiement'}
+                </button>
+              </div>
+            </div>
+          )}
 
           <section className="candidates-section" id="vote">
             <h2>Les Candidates</h2>

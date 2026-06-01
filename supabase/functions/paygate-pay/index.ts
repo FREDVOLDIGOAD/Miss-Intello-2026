@@ -1,88 +1,145 @@
+// @ts-ignore: Remote Deno std module import
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+// @ts-ignore: Remote Supabase client import
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2?target=deno"
 
-// Headers pour autoriser ton site Vercel à appeler cette fonction (CORS)
+declare const Deno: any
+
+declare global {
+  interface Window {}
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 }
 
-serve(async (req) => {
-  // Gestion du "Preflight" (indispensable pour les navigateurs)
+const validNetworks = ['TMONEY', 'FLOOZ']
+const PRICE_PER_VOTE = 200
+
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { phone, amount, network, candidateId, voteCount } = await req.json()
-    const numberOfVotes = Number(voteCount) || 1  // Nombre de votes (défaut: 1)
+    const { phone, amount, network, candidateId, voteCount } = await req.json() as {
+      phone?: string
+      amount?: number | string
+      network?: string
+      candidateId?: string | number
+      voteCount?: number | string
+    }
 
-    // On génère un identifiant unique pour PayGate (Paramètre 'identifier' requis)
+    if (!phone || amount === undefined || amount === null || !network || !candidateId) {
+      return new Response(JSON.stringify({ error: 'Paramètres manquants : phone, amount, network, candidateId.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    if (!validNetworks.includes(network)) {
+      return new Response(JSON.stringify({ error: 'Réseau invalide. Utilisez TMONEY ou FLOOZ.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const numberOfVotes = Math.max(1, Math.floor(Number(voteCount) || 1))
+    if (numberOfVotes < 1) {
+      return new Response(JSON.stringify({ error: 'Le nombre de votes doit être au moins 1.' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const amountNumber = Number(amount)
+    if (!Number.isFinite(amountNumber) || amountNumber !== numberOfVotes * PRICE_PER_VOTE) {
+      return new Response(JSON.stringify({ error: `Montant incorrect. Le montant doit être égal à ${numberOfVotes * PRICE_PER_VOTE}.` }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const paygateToken = Deno.env.get('PAYGATE_TOKEN')
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+    if (!paygateToken || !supabaseUrl || !supabaseServiceKey) {
+      return new Response(JSON.stringify({ error: 'Configuration serveur incomplète : PAYGATE_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY requis.' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const identifier = crypto.randomUUID()
+    console.log(`Initiation paiement pour ${phone} - Montant: ${amountNumber} FCFA - Réseau: ${network} - Votes: ${numberOfVotes}`)
 
-    console.log(`Initiation paiement pour ${phone} - Montant: ${amount} FCFA - Réseau: ${network} - Votes: ${numberOfVotes}`)
-
-    // Appel à l'API PayGateGlobal selon ton guide
-    const response = await fetch("https://paygateglobal.com/api/v1/pay", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const response = await fetch('https://paygateglobal.com/api/v1/pay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        auth_token: Deno.env.get("PAYGATE_TOKEN"), // Ton token LIVE caché
+        auth_token: paygateToken,
         phone_number: phone,
-        amount: amount,
-        identifier: identifier,
-        network: network,
-        description: `${numberOfVotes} vote(s) Miss Intello pour candidate ${candidateId}`
+        amount: amountNumber,
+        identifier,
+        network,
+        description: `${numberOfVotes} vote(s) Miss Intello pour candidate ${candidateId}`,
       }),
     })
 
     const result = await response.json()
-    console.log("Réponse PayGate:", result)
+    console.log('Réponse PayGate:', result)
 
-    // Si la transaction est enregistrée (status == 0), on incrémente le vote
-    if (result.status === 0 || result.status === "0") {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
-      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
-      const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-      // Incrémenter directement avec le bon nombre de votes via UPDATE
-      const { error: voteError } = await supabase
-        .from('candidates')
-        .update({ votes: supabase.rpc('increment_by', { x: numberOfVotes }) })
-        .eq('id', candidateId)
-
-      if (voteError) {
-        // Fallback : utiliser la fonction RPC avec le montant
-        console.warn("Update direct échoué, tentative RPC increment_vote:", voteError)
-        const { error: rpcError } = await supabase.rpc('increment_vote_by', {
-          row_id: candidateId,
-          vote_amount: numberOfVotes
-        })
-        if (rpcError) {
-          // Dernier recours : incrémenter 1 par 1 en boucle
-          console.warn("increment_vote_by échoué, incrémentation unitaire:", rpcError)
-          for (let i = 0; i < numberOfVotes; i++) {
-            await supabase.rpc('increment_vote', { row_id: candidateId })
-          }
-          console.log(`Vote incrémenté ${numberOfVotes} fois via increment_vote unitaire`)
-        } else {
-          console.log(`Vote incrémenté de ${numberOfVotes} via increment_vote_by`)
-        }
-      } else {
-        console.log(`Vote incrémenté de ${numberOfVotes} via UPDATE direct`)
-      }
+    if (!(result.status === 0 || result.status === '0')) {
+      return new Response(JSON.stringify({
+        success: false,
+        status: result.status ?? 1,
+        error: result.message || 'Échec du paiement PayGate.',
+        result,
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
 
-    // On renvoie la réponse de PayGate à ton application
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    const txReference = result.tx_reference ?? result.reference ?? identifier
+    const { error: saveError } = await supabase.from('transactions').insert([
+      {
+        transaction_ref: txReference,
+        identifier,
+        candidate_id: candidateId,
+        amount: amountNumber,
+        vote_count: numberOfVotes,
+        status: 'pending',
+      },
+    ], { upsert: true, onConflict: ['transaction_ref', 'identifier'] })
+
+    if (saveError) {
+      console.warn('Impossible d’enregistrer la transaction PayGate en attente :', saveError)
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
+      paymentInitiated: true,
+      status: result.status === undefined ? 0 : result.status,
+      message: 'Paiement initié. Confirmez la transaction depuis votre téléphone. Le vote sera comptabilisé après paiement confirmé.',
+      paygateResult: result,
+      reference: txReference,
+      candidateId,
+      voteCount: numberOfVotes,
+    }), {
       status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
 
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 400,
+    console.error('Erreur paygate-pay :', error)
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Erreur interne du serveur.' }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500,
     })
   }
 })

@@ -2,8 +2,15 @@
 CREATE TABLE IF NOT EXISTS public.transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     candidate_id UUID REFERENCES public.candidates(id),
+    identifier TEXT UNIQUE NOT NULL,
     transaction_ref TEXT UNIQUE NOT NULL,
     amount INTEGER DEFAULT 200,
+    vote_count INTEGER NOT NULL DEFAULT 1,
+    status TEXT NOT NULL DEFAULT 'pending',
+    payment_method TEXT,
+    phone_number TEXT,
+    payment_reference TEXT,
+    confirmed_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
