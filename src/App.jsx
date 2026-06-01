@@ -460,7 +460,7 @@ export default function App() {
               <h4 className="text-white font-bold text-lg mb-4">Contacts</h4>
               <ul className="text-gray-400 text-sm space-y-2">
                 <li><i className="fa-solid fa-phone mr-2 text-[#ec4899]"></i> +228 90 83 64 94</li>
-                <li><i className="fa-solid fa-envelope mr-2 text-[#ec4899]"></i> comitemissintello01@gmailcom</li>
+                <li><i className="fa-solid fa-envelope mr-2 text-[#ec4899]"></i> comitemissintello1@gmailcom</li>
                 <li><i className="fa-solid fa-location-dot mr-2 text-[#ec4899]"></i> Lomé, TOGO</li>
               </ul>
             </div>
