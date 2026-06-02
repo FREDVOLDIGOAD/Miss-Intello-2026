@@ -177,8 +177,8 @@ serve(async (req: Request) => {
       .eq('id', existing.id)
 
     if (updateError) {
-      console.error('Erreur mise à jour transaction paygate-callback :', updateError)
-      return new Response(JSON.stringify({ success: false, error: 'Impossible de mettre à jour la transaction.' }), {
+      console.error('❌ ERREUR: Impossible de mettre à jour la transaction dans paygate-callback:', updateError)
+      return new Response(JSON.stringify({ success: false, error: 'Impossible de mettre à jour la transaction. Vérifiez que les politiques RLS de la table transactions sont configurées.' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })

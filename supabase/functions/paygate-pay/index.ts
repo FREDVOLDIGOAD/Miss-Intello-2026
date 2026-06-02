@@ -118,7 +118,16 @@ serve(async (req: Request) => {
     ], { upsert: true, onConflict: ['transaction_ref', 'identifier'] })
 
     if (saveError) {
-      console.warn('Impossible d’enregistrer la transaction PayGate en attente :', saveError)
+      console.error('❌ ERREUR CRITIQUE: Impossible d'enregistrer la transaction PayGate en attente:', saveError)
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Erreur base de données : impossible d'enregistrer la transaction. Les politiques RLS sur la table transactions pourraient être manquantes.',
+        details: saveError,
+        databaseError: true,
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
 
     return new Response(JSON.stringify({

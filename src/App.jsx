@@ -113,8 +113,9 @@ export default function App() {
         setShowPaymentModal(false);
       }
 
-      // Rafraîchir la liste des candidats
-      fetchCandidates();
+      // ✅ Note: Do NOT refresh candidates here!
+      // Payment was just INITIATED (not yet confirmed).
+      // Votes will only be added after verifyPaygateTransaction() confirms the payment.
 
     } catch (err) {
       console.error("Erreur de Paiement PayGate:", err);
