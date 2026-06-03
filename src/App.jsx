@@ -259,10 +259,10 @@ export default function App() {
                         <h3 className="candidate-name">{candidate.name}</h3>
 
                         <div className="candidate-info">
-                          <p>🔢 Candidate N°{candidate.candidate_number}</p>
-                          <p>🎂 Âge : {candidate.age}</p>
-                          <p>📏 Taille : {candidate.taille}</p>
-                          <p>⚖️ Poids : {candidate.poids}</p>
+                          <p> Candidate N°{candidate.candidate_number}</p>
+                          <p> Âge : {candidate.age}</p>
+                          <p> Taille : {candidate.taille}</p>
+                          <p> Poids : {candidate.poids}</p>
                         </div>
 
                         <div className="info-line purple-text">
