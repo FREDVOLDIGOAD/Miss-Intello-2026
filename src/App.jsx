@@ -1,12 +1,22 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
 
+const QUICK_VOTES = [1, 3, 5, 10, 20];
+
 export default function App() {
   const [candidates, setCandidates] = useState([]);
   const [erreur, setErreur] = useState(null);
+  const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [pendingReference, setPendingReference] = useState(null);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [network, setNetwork] = useState('TMONEY');
+  const [voteCount, setVoteCount] = useState(1);
+  const PRICE_PER_VOTE = 200;
+  const currentCandidateRef = useRef(null);
 
-
-  // Function to fetch candidates from Supabase
   const fetchCandidates = async () => {
     try {
       const { data, error } = await supabase.from('candidates').select('*');
@@ -17,29 +27,19 @@ export default function App() {
     }
   };
 
-  const [selectedCandidate, setSelectedCandidate] = useState(null);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentLoading, setPaymentLoading] = useState(false);
-  const [verifyLoading, setVerifyLoading] = useState(false);
-  const [pendingReference, setPendingReference] = useState(null);
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [network, setNetwork] = useState('TMONEY'); // TMONEY ou FLOOZ
-  const [voteCount, setVoteCount] = useState(1); // Nombre de votes choisi
-  const PRICE_PER_VOTE = 200; // FCFA par vote
-  const currentCandidateRef = useRef(null);
-
   useEffect(() => {
     fetchCandidates();
   }, []);
 
-  // L'écouteur Kkiapay a été retiré, nous utilisons maintenant PayGate.
-
   if (erreur) {
     return (
-      <div className="p-20 text-center text-red-500">
-        <h1 className="text-2xl font-bold">Oups ! Erreur de connexion ❌</h1>
-        <p className="mt-4 bg-gray-100 p-4 rounded">{erreur}</p>
-        <p className="mt-4 text-gray-500 italic">Vérifie tes clés dans le fichier .env</p>
+      <div className="page-shell page-shell--centered">
+        <div className="feedback-card glass-card">
+          <span className="eyebrow">Connexion</span>
+          <h1>Oups ! Erreur de connexion ❌</h1>
+          <p className="feedback-message">{erreur}</p>
+          <p className="feedback-hint">Vérifie tes clés dans le fichier .env</p>
+        </div>
       </div>
     );
   }
@@ -48,13 +48,13 @@ export default function App() {
     currentCandidateRef.current = candidate;
     setShowPaymentModal(true);
     setPhoneNumber('');
-    setNetwork('TMONEY'); // Réseau par défaut
-    setVoteCount(1); // Réinitialiser le nombre de votes
+    setNetwork('TMONEY');
+    setVoteCount(1);
   };
 
-  const handleVotePayGate = async (candidate, phoneNumber, network, numberOfVotes) => {
+  const handleVotePayGate = async (candidate, mobilePhoneNumber, paymentNetwork, numberOfVotes) => {
     if (!candidate) {
-      alert("Aucune candidate sélectionnée.");
+      alert('Aucune candidate sélectionnée.');
       return false;
     }
 
@@ -62,9 +62,9 @@ export default function App() {
 
     const { data, error } = await supabase.functions.invoke('paygate-pay', {
       body: {
-        phone: phoneNumber,
+        phone: mobilePhoneNumber,
         amount: totalAmount,
-        network,
+        network: paymentNetwork,
         candidateId: candidate.id,
         voteCount: numberOfVotes,
       },
@@ -72,23 +72,23 @@ export default function App() {
 
     if (error) {
       console.error("Erreur d'appel Edge Function:", error);
-      alert("Impossible de contacter le service de paiement. Vérifiez votre connexion ou réessayez plus tard.");
+      alert('Impossible de contacter le service de paiement. Vérifiez votre connexion ou réessayez plus tard.');
       return false;
     }
 
     if (data?.paymentInitiated === true) {
       setPendingReference(data.reference || null);
-      alert(`Demande de paiement envoyée ! Vérifiez votre téléphone et confirmez la transaction. Le vote sera comptabilisé une fois le paiement confirmé.`);
+      alert('Demande de paiement envoyée ! Vérifiez votre téléphone et confirmez la transaction. Le vote sera comptabilisé une fois le paiement confirmé.');
       return true;
     }
 
     const status = data?.status ?? data?.paygateResult?.status;
-    const serverMessage = data?.error || data?.message || "Une erreur inconnue est survenue avec PayGate.";
+    const serverMessage = data?.error || data?.message || 'Une erreur inconnue est survenue avec PayGate.';
 
     if (status === 2) {
       alert("Erreur PayGate : jeton d'authentification invalide.");
     } else if (status === 4) {
-      alert("Erreur PayGate : paramètres invalides (vérifiez le numéro et le réseau).");
+      alert('Erreur PayGate : paramètres invalides (vérifiez le numéro et le réseau).');
     } else {
       alert(serverMessage);
     }
@@ -99,14 +99,13 @@ export default function App() {
   const processPaygatePayment = async (e) => {
     e.preventDefault();
     if (!phoneNumber || phoneNumber.length < 8) {
-      alert("Veuillez entrer un numéro de téléphone valide.");
+      alert('Veuillez entrer un numéro de téléphone valide.');
       return;
     }
 
     setPaymentLoading(true);
     try {
       const candidate = currentCandidateRef.current;
-
       const success = await handleVotePayGate(candidate, phoneNumber, network, voteCount);
 
       if (success) {
@@ -118,7 +117,7 @@ export default function App() {
       // Votes will only be added after verifyPaygateTransaction() confirms the payment.
 
     } catch (err) {
-      console.error("Erreur de Paiement PayGate:", err);
+      console.error('Erreur de Paiement PayGate:', err);
       alert(`Erreur lors de l'initiation du paiement : ${err.message || 'Impossible de joindre le serveur.'}`);
     } finally {
       setPaymentLoading(false);
@@ -165,263 +164,333 @@ export default function App() {
   return (
     <>
       {!selectedCandidate ? (
-        <>
-          <header>
-            <div className="logo-top">
-              <strong>MISS INTELLO</strong>
+        <div className="page-shell">
+          <header className="site-header">
+            <div className="brand">
+              <img src="/assets/logo-miss-intello.png" alt="Logo MISS INTELLO" className="brand__logo" />
+              <div>
+                <span className="eyebrow">Vote officiel 2026</span>
+                <strong>MISS INTELLO</strong>
+              </div>
             </div>
 
-            <div className="hero-content">
-              <h1>Votez en ligne pour Votre candidate préférée</h1>
-              <p>Élisez votre candidate préférée au concours Miss Intello et soutenez l&apos;intelligence au féminin !</p>
-              <a href="#vote" className="btn-main">Voter maintenant</a>
-            </div>
-
-            <div className="hero-image">
-              <img src="WhatsApp_Image_2026-03-30_at_20.55.09-removebg-preview.png" alt="Miss Intello" />
-            </div>
+            <a href="#vote" className="button button--ghost">Voter maintenant</a>
           </header>
 
-          {pendingReference && (
-            <div className="max-w-4xl mx-auto my-6 rounded-2xl border border-pink-400/30 bg-pink-500/10 p-5 text-pink-100 shadow-lg">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <strong>Paiement en attente</strong>
-                  <p className="text-sm text-pink-200 mt-1">Référence : {pendingReference}. Si le paiement est déjà confirmé, cliquez sur Vérifier.</p>
+          <main>
+            <section className="hero section">
+              <div className="hero__visual">
+                <div className="glow glow--one"></div>
+                <div className="glow glow--two"></div>
+
+                <div className="hero__content glass-card">
+                  <div className="hero__brandmark">
+                    <img src="/assets/logo-miss-intello.png" alt="Logo officiel MISS INTELLO" className="hero__brandmark-logo" />
+                    <div>
+                      <span className="eyebrow">Collection officielle</span>
+                      <strong>MISS INTELLO 2026</strong>
+                    </div>
+                  </div>
+
+                  <h1>Votez en ligne pour Votre candidate préférée</h1>
+                  <p className="hero__lead">Élisez votre candidate préférée au concours Miss Intello et soutenez l&apos;intelligence au féminin !</p>
+
+                  <div className="hero__actions">
+                    <a href="#vote" className="button">Voter maintenant</a>
+                  </div>
                 </div>
-                <button
-                  onClick={verifyPaygateTransaction}
-                  disabled={verifyLoading}
-                  className="btn-main inline-flex items-center justify-center px-5 py-3"
-                >
-                  {verifyLoading ? 'Vérification...' : 'Vérifier le paiement'}
-                </button>
+
+                <div className="hero__side">
+                  <div className="hero-image-card glass-card">
+                    <div className="hero-image">
+                      <img src="/WhatsApp_Image_2026-03-30_at_20.55.09-removebg-preview.png" alt="Miss Intello" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {pendingReference && (
+              <section className="section section--compact">
+                <div className="status-banner glass-card">
+                  <div>
+                    <strong>Paiement en attente</strong>
+                    <p>Référence : {pendingReference}. Si le paiement est déjà confirmé, cliquez sur Vérifier.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={verifyPaygateTransaction}
+                    disabled={verifyLoading}
+                    className="button button--secondary"
+                  >
+                    {verifyLoading ? 'Vérification...' : 'Vérifier le paiement'}
+                  </button>
+                </div>
+              </section>
+            )}
+
+            <section className="section" id="vote">
+              <div className="section-heading">
+                <span className="eyebrow">Galerie officielle</span>
+                <h2>Les Candidates</h2>
+              </div>
+
+              {candidates.length === 0 ? (
+                <div className="empty-state glass-card">
+                  <p>Aucune candidate trouvée dans la base de données.</p>
+                  <p>Va dans le &quot;Table Editor&quot; de Supabase pour en ajouter !</p>
+                </div>
+              ) : (
+                <div className="candidates-grid">
+                  {candidates.map((candidate) => (
+                    <article key={candidate.id} className="card candidate-card">
+                      <div className="card-image-box candidate-card__media">
+                        <img src={candidate.photo_url || 'https://via.placeholder.com/300x350/222/fff?text=Photo'} alt={candidate.name} />
+                      </div>
+
+                      <div className="card-info candidate-card__body">
+                        <div className="candidate-card__meta">
+                          <p className="label-category">MISS</p>
+                          <div className="stat-badge">
+                            <i className="fa-solid fa-check-to-slot"></i> {candidate.votes} votes
+                          </div>
+                        </div>
+
+                        <h3 className="candidate-name">{candidate.name}</h3>
+
+                        <div className="info-line purple-text">
+                          <i className="fa-solid fa-money-bill-wave"></i>
+                          <span>Montant / vote : 200 FCFA</span>
+                        </div>
+                      </div>
+
+                      <div className="card-buttons candidate-card__actions">
+                        <button type="button" onClick={() => handleVoteClick(candidate)} className="button button--card">
+                          Voter
+                        </button>
+                        <button type="button" onClick={() => setSelectedCandidate(candidate)} className="button button--secondary button--card-secondary">
+                          <i className="fa-regular fa-eye"></i> Voir Détail
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </main>
+
+          <footer className="site-footer">
+            <div className="site-footer__grid">
+              <div>
+                <div className="footer-brand">
+                  <img src="/assets/logo-miss-intello.png" alt="Logo MISS INTELLO" className="footer-brand__logo" />
+                  <h4>Miss Intello 2026</h4>
+                </div>
+                <p>
+                  Célébrons l&apos;intelligence, le leadership et l&apos;excellence au féminin. Soutenez votre candidate favorite en votant en ligne.
+                </p>
+              </div>
+
+              <div>
+                <h4>Contacts</h4>
+                <ul>
+                  <li><i className="fa-solid fa-phone"></i> +228 90 83 64 94</li>
+                  <li><i className="fa-solid fa-envelope"></i> comitemissintello1@gmailcom</li>
+                  <li><i className="fa-solid fa-location-dot"></i> Lomé, TOGO</li>
+                </ul>
+              </div>
+
+              <div>
+                <h4>Informations</h4>
+                <ul>
+                  <li><a href="#/">Mentions Légales</a></li>
+                  <li><a href="#/">Conditions Générales de Vente</a></li>
+                  <li><a href="#/">Politique de Confidentialité</a></li>
+                </ul>
               </div>
             </div>
-          )}
 
-          <section className="candidates-section" id="vote">
-            <h2>Les Candidates</h2>
-
-            {candidates.length === 0 ? (
-              <div style={{ background: 'rgba(255, 255, 255, 0.05)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.1)', padding: '40px', borderRadius: '10px', boxShadow: '0 10px 20px rgba(0,0,0,0.3)', maxWidth: '400px', margin: '0 auto' }}>
-                <p style={{ color: '#e2e8f0' }}>Aucune candidate trouvée dans la base de données.</p>
-                <p style={{ color: '#cbd5e1', fontSize: '0.9rem', marginTop: '10px' }}>Va dans le "Table Editor" de Supabase pour en ajouter !</p>
-              </div>
-            ) : (
-              <div className="candidates-grid">
-                {candidates.map(c => (
-                  <article key={c.id} className="card">
-                    <div className="card-image-box">
-                      <img src={c.photo_url || "https://via.placeholder.com/300x350/222/fff?text=Photo"} alt={c.name} />
-                    </div>
-
-                    <div className="card-info">
-                      <p className="label-category">MISS</p>
-                      <h3 className="candidate-name">{c.name}</h3>
-
-                      <div className="stat-badge">
-                        <i className="fa-solid fa-check-to-slot"></i> {c.votes} votes
-                      </div>
-                      <div className="info-line purple-text">
-                        <i className="fa-solid fa-money-bill-wave"></i>
-                        <span>Montant / vote : 200 FCFA</span>
-                      </div>
-                    </div>
-
-                    <div className="card-buttons">
-                      <button onClick={() => handleVoteClick(c)} className="btn-vote-now">Voter</button>
-                      <button onClick={() => setSelectedCandidate(c)} className="btn-view-details">
-                        <i className="fa-regular fa-eye"></i> Voir Détail
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-        </>
+            <div className="site-footer__bottom">
+              <p>&copy; {new Date().getFullYear()} Miss Intello. Tous droits réservés.</p>
+            </div>
+          </footer>
+        </div>
       ) : (
-        <div className="details-page-wrapper">
-          <div className="detail-container">
+        <div className="page-shell detail-page-shell">
+          <section className="section section--compact">
             <a href="#/" className="btn-back" onClick={(e) => { e.preventDefault(); setSelectedCandidate(null); }}>
               <i className="fa-solid fa-arrow-left"></i> Retour aux candidates
             </a>
+          </section>
 
-            <div className="main-layout">
-              <div className="poster-section">
-                <img src={selectedCandidate.photo_url || "https://via.placeholder.com/400x500"} alt="Affiche Candidate" className="candidate-poster" />
-              </div>
-
-              <div className="info-section">
-                <div className="candidate-header">
-                  <span className="category-tag">MISS</span>
-                  <h1 className="candidate-name-large">{selectedCandidate.name}</h1>
+          <section className="section section--compact">
+            <div className="detail-container">
+              <div className="main-layout">
+                <div className="poster-section glass-card">
+                  <img src={selectedCandidate.photo_url || 'https://via.placeholder.com/400x500'} alt="Affiche Candidate" className="candidate-poster" />
                 </div>
 
-                <div className="stats-grid">
-                  <div className="stat-item">
-                    <div className="stat-icon"><i className="fa-solid fa-check-to-slot"></i></div>
-                    <div className="stat-text">
-                      <label>Votes</label>
-                      <strong>{selectedCandidate.votes}</strong>
+                <div className="info-section glass-card">
+                  <div className="candidate-header">
+                    <span className="category-tag">MISS</span>
+                    <h1 className="candidate-name-large">{selectedCandidate.name}</h1>
+                  </div>
+
+                  <div className="stats-grid">
+                    <div className="stat-item">
+                      <div className="stat-icon"><i className="fa-solid fa-check-to-slot"></i></div>
+                      <div className="stat-text">
+                        <label>Votes</label>
+                        <strong>{selectedCandidate.votes}</strong>
+                      </div>
+                    </div>
+                    <div className="stat-item">
+                      <div className="stat-icon"><i className="fa-solid fa-money-bill-wave"></i></div>
+                      <div className="stat-text">
+                        <label>Montant / vote</label>
+                        <strong>200 FCFA</strong>
+                      </div>
                     </div>
                   </div>
-                  <div className="stat-item">
-                    <div className="stat-icon"><i className="fa-solid fa-money-bill-wave"></i></div>
-                    <div className="stat-text">
-                      <label>Montant / vote</label>
-                      <strong>200 FCFA</strong>
+
+                  <div className="bio-card">
+                    <h3 className="bio-card__title">
+                      <i className="fa-solid fa-book-open"></i> Biographie
+                    </h3>
+                    <div className="bio-card__content">
+                      {selectedCandidate.biography ? (
+                        <p>{selectedCandidate.biography}</p>
+                      ) : (
+                        <p className="bio-card__placeholder">
+                          {selectedCandidate.name} est une jeune femme passionnée et déterminée. Elle participe à l&apos;élection Miss Intello 2026 pour mettre en avant l&apos;excellence, le leadership féminin et défendre les causes qui lui tiennent à cœur.
+                          <strong>(Biographie détaillée à venir)</strong>
+                        </p>
+                      )}
                     </div>
                   </div>
+
+                  <button type="button" className="button button--large" onClick={() => handleVoteClick(selectedCandidate)}>
+                    <i className="fa-solid fa-heart"></i> Voter pour {selectedCandidate.name}
+                  </button>
                 </div>
-
-                <div className="bg-white/5 border border-white/10 rounded-xl p-6 mb-8 backdrop-blur-md shadow-lg">
-                  <h3 className="text-xl font-semibold mb-3 text-black flex items-center gap-2">
-                    <i className="fa-solid fa-book-open text-pink-500"></i> Biographie
-                  </h3>
-                  <div className="text-black leading-relaxed text-[0.95rem]">
-                    {selectedCandidate.biography ? (
-                      <p>{selectedCandidate.biography}</p>
-                    ) : (
-                      <p className="italic text-gray-400">
-                        {selectedCandidate.name} est une jeune femme passionnée et déterminée. Elle participe à l&apos;élection Miss Intello 2026 pour mettre en avant l&apos;excellence, le leadership féminin et défendre les causes qui lui tiennent à cœur.
-                        <strong>(Biographie détaillée à venir)</strong>
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-
-                <button className="btn-vote-large" onClick={() => handleVoteClick(selectedCandidate)}>
-                  <i className="fa-solid fa-heart"></i> Voter pour {selectedCandidate.name}
-                </button>
               </div>
             </div>
-          </div>
+          </section>
         </div>
       )}
 
-      {/* PayGate Modal */}
       {showPaymentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#1e1e2e] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl relative transition-all">
+        <div className="modal-overlay">
+          <div className="modal-card glass-card">
             <button
+              type="button"
               onClick={() => !paymentLoading && setShowPaymentModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+              className="modal-close"
               disabled={paymentLoading}
             >
-              <i className="fa-solid fa-xmark text-xl"></i>
+              <i className="fa-solid fa-xmark"></i>
             </button>
 
-            <div className="p-8">
-              <h3 className="text-2xl font-bold text-white mb-2 text-center">
-                Paiement <span className="text-[#ec4899]">PayGate</span>
-              </h3>
-              <p className="text-gray-400 text-center text-sm mb-6">
-                Votez pour <span className="text-pink-400 font-semibold">{currentCandidateRef.current?.name}</span>
+            <div className="modal-card__body">
+              <h3 className="modal-title">Paiement <span>PayGate</span></h3>
+              <p className="modal-subtitle">
+                Votez pour <span>{currentCandidateRef.current?.name}</span>
               </p>
 
-              <form onSubmit={processPaygatePayment} className="space-y-5">
-
-                {/* --- Sélecteur du nombre de votes --- */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    <i className="fa-solid fa-check-to-slot mr-2 text-pink-400"></i>
+              <form onSubmit={processPaygatePayment} className="payment-form">
+                <div className="form-field">
+                  <label htmlFor="vote-count">
+                    <i className="fa-solid fa-check-to-slot"></i>
                     Nombre de votes
                   </label>
-                  <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl p-2">
+                  <div className="vote-stepper">
                     <button
                       type="button"
-                      onClick={() => setVoteCount(v => Math.max(1, v - 1))}
+                      onClick={() => setVoteCount((value) => Math.max(1, value - 1))}
                       disabled={paymentLoading || voteCount <= 1}
-                      className="w-10 h-10 rounded-lg bg-white/10 hover:bg-pink-600/30 text-white font-bold text-lg flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="step-button"
                     >
                       −
                     </button>
                     <input
+                      id="vote-count"
                       type="number"
                       min="1"
                       value={voteCount}
                       onChange={(e) => {
-                        const val = parseInt(e.target.value);
-                        if (!isNaN(val) && val >= 1) setVoteCount(val);
+                        const value = parseInt(e.target.value, 10);
+                        if (!Number.isNaN(value) && value >= 1) {
+                          setVoteCount(value);
+                        }
                       }}
                       disabled={paymentLoading}
-                      className="flex-1 text-center bg-transparent text-white text-2xl font-bold focus:outline-none"
+                      className="vote-input"
                     />
                     <button
                       type="button"
-                      onClick={() => setVoteCount(v => v + 1)}
+                      onClick={() => setVoteCount((value) => value + 1)}
                       disabled={paymentLoading}
-                      className="w-10 h-10 rounded-lg bg-white/10 hover:bg-pink-600/30 text-white font-bold text-lg flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="step-button"
                     >
                       +
                     </button>
                   </div>
-                  {/* Raccourcis rapides */}
-                  <div className="flex gap-2 mt-2 flex-wrap">
-                    {[1, 3, 5, 10, 20].map(n => (
+                  <div className="vote-chip-grid">
+                    {QUICK_VOTES.map((value) => (
                       <button
-                        key={n}
+                        key={value}
                         type="button"
-                        onClick={() => setVoteCount(n)}
+                        onClick={() => setVoteCount(value)}
                         disabled={paymentLoading}
-                        className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                          voteCount === n
-                            ? 'bg-pink-600 text-white'
-                            : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
-                        }`}
+                        className={`vote-chip ${voteCount === value ? 'is-active' : ''}`}
                       >
-                        {n}x
+                        {value}x
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Récapitulatif du montant */}
-                <div className="flex items-center justify-between bg-gradient-to-r from-pink-600/10 to-purple-600/10 border border-pink-500/20 rounded-xl px-4 py-3">
-                  <span className="text-gray-300 text-sm">Total à payer</span>
-                  <span className="text-white font-bold text-xl">
-                    {(voteCount * PRICE_PER_VOTE).toLocaleString('fr-FR')} <span className="text-pink-400 text-sm">FCFA</span>
-                  </span>
+                <div className="payment-summary">
+                  <span>Total à payer</span>
+                  <strong>
+                    {(voteCount * PRICE_PER_VOTE).toLocaleString('fr-FR')} <span>FCFA</span>
+                  </strong>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Réseau Mobile</label>
-                  <div className="grid grid-cols-2 gap-3">
+                <div className="form-field">
+                  <label>Réseau Mobile</label>
+                  <div className="network-grid">
                     <button
                       type="button"
                       onClick={() => setNetwork('TMONEY')}
-                      className={`py-3 px-4 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all ${network === 'TMONEY' ? 'border-[#ec4899] bg-[#ec4899]/10 text-white' : 'border-white/10 bg-white/5 text-gray-400 hover:border-white/30'}`}
+                      className={`network-option ${network === 'TMONEY' ? 'is-active' : ''}`}
                       disabled={paymentLoading}
                     >
-                      <i className="fa-solid fa-mobile-screen text-xl"></i>
-                      <span className="font-semibold text-sm">T-Money</span>
+                      <i className="fa-solid fa-mobile-screen"></i>
+                      <span>T-Money</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setNetwork('FLOOZ')}
-                      className={`py-3 px-4 rounded-xl border flex flex-col items-center justify-center gap-2 transition-all ${network === 'FLOOZ' ? 'border-blue-500 bg-blue-500/10 text-white' : 'border-white/10 bg-white/5 text-gray-400 hover:border-white/30'}`}
+                      className={`network-option ${network === 'FLOOZ' ? 'is-active' : ''}`}
                       disabled={paymentLoading}
                     >
-                      <i className="fa-solid fa-sim-card text-xl"></i>
-                      <span className="font-semibold text-sm">Flooz</span>
+                      <i className="fa-solid fa-sim-card"></i>
+                      <span>Flooz</span>
                     </button>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">Numéro de téléphone</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                      <span className="text-gray-400 font-medium">+228</span>
-                    </div>
+                <div className="form-field">
+                  <label htmlFor="phone-number">Numéro de téléphone</label>
+                  <div className="phone-field">
+                    <span className="country-code">+228</span>
                     <input
+                      id="phone-number"
                       type="tel"
                       value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value.replace(/\\D/g, ''))}
-                      className="w-full bg-white/5 border border-white/10 text-white rounded-xl pl-16 pr-4 py-3 focus:outline-none focus:border-[#ec4899] transition-colors"
+                      onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                      className="phone-input"
                       placeholder="90 00 00 00"
                       required
                       disabled={paymentLoading}
@@ -433,7 +502,7 @@ export default function App() {
                 <button
                   type="submit"
                   disabled={paymentLoading || phoneNumber.length < 8}
-                  className="w-full mt-6 bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg transition-all transform hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="button button--submit"
                 >
                   {paymentLoading ? (
                     <><i className="fa-solid fa-circle-notch fa-spin"></i> Traitement...</>
@@ -446,41 +515,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-      <footer className="mt-16 border-t border-white/10 bg-black/40 py-12 backdrop-blur-md">
-        <div className="container mx-auto px-6 max-w-6xl">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center md:text-left">
-              <h4 className="text-[#ec4899] font-bold text-lg mb-4">Miss Intello 2026</h4>
-              <p className="text-gray-400 text-sm leading-relaxed">
-                Célébrons l&apos;intelligence, le leadership et l&apos;excellence au féminin. Soutenez votre candidate favorite en votant en ligne.
-              </p>
-            </div>
-
-            <div className="text-center">
-              <h4 className="text-white font-bold text-lg mb-4">Contacts</h4>
-              <ul className="text-gray-400 text-sm space-y-2">
-                <li><i className="fa-solid fa-phone mr-2 text-[#ec4899]"></i> +228 90 83 64 94</li>
-                <li><i className="fa-solid fa-envelope mr-2 text-[#ec4899]"></i> comitemissintello1@gmailcom</li>
-                <li><i className="fa-solid fa-location-dot mr-2 text-[#ec4899]"></i> Lomé, TOGO</li>
-              </ul>
-            </div>
-
-            <div className="text-center md:text-right">
-              <h4 className="text-white font-bold text-lg mb-4">Informations</h4>
-              <ul className="text-gray-400 text-sm space-y-2">
-                <li><a href="#/" className="hover:text-[#ec4899] transition-colors">Mentions Légales</a></li>
-                <li><a href="#/" className="hover:text-[#ec4899] transition-colors">Conditions Générales de Vente</a></li>
-                <li><a href="#/" className="hover:text-[#ec4899] transition-colors">Politique de Confidentialité</a></li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="mt-10 pt-6 border-t border-white/10 text-center text-gray-500 text-sm">
-            <p> &copy; {new Date().getFullYear()} Miss Intello. Tous droits réservés.</p>
-          </div>
-        </div>
-      </footer>
     </>
   );
 }
