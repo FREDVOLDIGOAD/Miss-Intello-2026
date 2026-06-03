@@ -2,11 +2,97 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabaseClient';
 
 const QUICK_VOTES = [1, 3, 5, 10, 20];
+const DEFAULT_PAGE_TITLE = 'MISS INTELLO 2026';
+const DEFAULT_SHARE_TITLE = 'Votez pour votre candidate préférée | Miss Intello 2026';
+const DEFAULT_SHARE_DESCRIPTION = 'Élisez votre candidate préférée au concours Miss Intello et soutenez l’intelligence au féminin.';
+const DEFAULT_SHARE_IMAGE = '/assets/logo-miss-intello.png';
+
+const getCandidateIdFromUrl = () => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  return new URL(window.location.href).searchParams.get('candidate');
+};
+
+const buildHomeUrl = () => {
+  const url = new URL(window.location.href);
+  url.pathname = '/';
+  url.searchParams.delete('candidate');
+  url.hash = '';
+  return url.toString();
+};
+
+const buildCandidateAppUrl = (candidateId) => {
+  const url = new URL(window.location.href);
+  url.pathname = '/';
+  url.searchParams.set('candidate', candidateId);
+  url.hash = '';
+  return url.toString();
+};
+
+const buildCandidateShareUrl = (candidateId) => {
+  const url = new URL(window.location.href);
+  url.pathname = `/share/candidate/${encodeURIComponent(candidateId)}`;
+  url.search = '';
+  url.hash = '';
+  return url.toString();
+};
+
+const toAbsoluteUrl = (value) => {
+  if (typeof window === 'undefined') {
+    return value;
+  }
+
+  try {
+    return new URL(value, window.location.origin).toString();
+  } catch {
+    return new URL(DEFAULT_SHARE_IMAGE, window.location.origin).toString();
+  }
+};
+
+const upsertMetaTag = (selector, attributes, content) => {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  let element = document.head.querySelector(selector);
+
+  if (!element) {
+    element = document.createElement('meta');
+    Object.entries(attributes).forEach(([key, value]) => {
+      element.setAttribute(key, value);
+    });
+    document.head.appendChild(element);
+  }
+
+  element.setAttribute('content', content);
+};
+
+const upsertLinkTag = (selector, attributes, href) => {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  let element = document.head.querySelector(selector);
+
+  if (!element) {
+    element = document.createElement('link');
+    Object.entries(attributes).forEach(([key, value]) => {
+      element.setAttribute(key, value);
+    });
+    document.head.appendChild(element);
+  }
+
+  element.setAttribute('href', href);
+};
 
 export default function App() {
   const [candidates, setCandidates] = useState([]);
+  const [candidatesLoading, setCandidatesLoading] = useState(true);
   const [erreur, setErreur] = useState(null);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [routeCandidateId, setRouteCandidateId] = useState(() => getCandidateIdFromUrl());
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [verifyLoading, setVerifyLoading] = useState(false);
@@ -18,18 +104,122 @@ export default function App() {
   const currentCandidateRef = useRef(null);
 
   const fetchCandidates = async () => {
+    setCandidatesLoading(true);
+
     try {
       const { data, error } = await supabase.from('candidates').select('*');
       if (error) throw error;
       setCandidates(data || []);
     } catch (e) {
       setErreur(e.message);
+    } finally {
+      setCandidatesLoading(false);
     }
   };
 
   useEffect(() => {
     fetchCandidates();
   }, []);
+
+  useEffect(() => {
+    const syncRouteWithUrl = () => {
+      setRouteCandidateId(getCandidateIdFromUrl());
+    };
+
+    window.addEventListener('popstate', syncRouteWithUrl);
+
+    return () => {
+      window.removeEventListener('popstate', syncRouteWithUrl);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!routeCandidateId) {
+      if (selectedCandidate !== null) {
+        setSelectedCandidate(null);
+      }
+
+      return;
+    }
+
+    const matchedCandidate = candidates.find((candidate) => String(candidate.id) === String(routeCandidateId));
+
+    if (matchedCandidate && selectedCandidate !== matchedCandidate) {
+      setSelectedCandidate(matchedCandidate);
+    }
+
+    if (!matchedCandidate && !candidatesLoading && selectedCandidate !== null) {
+      setSelectedCandidate(null);
+    }
+  }, [candidates, candidatesLoading, routeCandidateId, selectedCandidate]);
+
+  useEffect(() => {
+    const title = selectedCandidate ? `${selectedCandidate.name} | Vote Miss Intello 2026` : DEFAULT_PAGE_TITLE;
+    const description = selectedCandidate
+      ? `Votez pour ${selectedCandidate.name} au concours Miss Intello 2026 et partagez sa page officielle.`
+      : DEFAULT_SHARE_DESCRIPTION;
+    const pageUrl = selectedCandidate ? buildCandidateAppUrl(selectedCandidate.id) : buildHomeUrl();
+    const imageUrl = toAbsoluteUrl(selectedCandidate?.photo_url || DEFAULT_SHARE_IMAGE);
+
+    document.title = title;
+    upsertMetaTag('meta[name="description"]', { name: 'description' }, description);
+    upsertMetaTag('meta[property="og:title"]', { property: 'og:title' }, selectedCandidate ? title : DEFAULT_SHARE_TITLE);
+    upsertMetaTag('meta[property="og:description"]', { property: 'og:description' }, description);
+    upsertMetaTag('meta[property="og:image"]', { property: 'og:image' }, imageUrl);
+    upsertMetaTag('meta[property="og:url"]', { property: 'og:url' }, pageUrl);
+    upsertMetaTag('meta[name="twitter:title"]', { name: 'twitter:title' }, selectedCandidate ? title : DEFAULT_SHARE_TITLE);
+    upsertMetaTag('meta[name="twitter:description"]', { name: 'twitter:description' }, description);
+    upsertMetaTag('meta[name="twitter:image"]', { name: 'twitter:image' }, imageUrl);
+    upsertLinkTag('link[rel="canonical"]', { rel: 'canonical' }, pageUrl);
+  }, [selectedCandidate]);
+
+  const openCandidateDetails = (candidate) => {
+    setSelectedCandidate(candidate);
+    setRouteCandidateId(candidate.id);
+    window.history.pushState({ candidateId: candidate.id }, '', buildCandidateAppUrl(candidate.id));
+  };
+
+  const closeCandidateDetails = () => {
+    setSelectedCandidate(null);
+    setRouteCandidateId(null);
+    window.history.pushState({}, '', buildHomeUrl());
+  };
+
+  const shareCandidate = async (candidate) => {
+    if (!candidate) {
+      return;
+    }
+
+    const shareUrl = buildCandidateShareUrl(candidate.id);
+    const shareData = {
+      title: `${candidate.name} | Miss Intello 2026`,
+      text: `Votez pour ${candidate.name} au concours Miss Intello 2026.`,
+      url: shareUrl,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        return;
+      }
+
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        alert(`Le lien de partage de ${candidate.name} a été copié.`);
+        return;
+      }
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        return;
+      }
+
+      console.error('Erreur lors du partage :', error);
+      alert('Le partage a échoué. Réessayez dans quelques instants.');
+      return;
+    }
+
+    window.prompt('Copiez ce lien de partage :', shareUrl);
+  };
 
   if (erreur) {
     return (
@@ -39,6 +229,18 @@ export default function App() {
           <h1>Oups ! Erreur de connexion ❌</h1>
           <p className="feedback-message">{erreur}</p>
           <p className="feedback-hint">Vérifie tes clés dans le fichier .env</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (candidatesLoading && routeCandidateId) {
+    return (
+      <div className="page-shell page-shell--centered">
+        <div className="feedback-card glass-card">
+          <span className="eyebrow">Chargement</span>
+          <h1>Ouverture de la candidate…</h1>
+          <p className="feedback-hint">Préparation de la page de vote.</p>
         </div>
       </div>
     );
@@ -275,8 +477,11 @@ export default function App() {
                         <button type="button" onClick={() => handleVoteClick(candidate)} className="button button--card">
                           Voter
                         </button>
-                        <button type="button" onClick={() => setSelectedCandidate(candidate)} className="button button--secondary button--card-secondary">
+                        <button type="button" onClick={() => openCandidateDetails(candidate)} className="button button--secondary button--card-secondary">
                           <i className="fa-regular fa-eye"></i> Voir Détail
+                        </button>
+                        <button type="button" onClick={() => shareCandidate(candidate)} className="button button--secondary button--card-secondary">
+                          <i className="fa-solid fa-share-nodes"></i> Partager
                         </button>
                       </div>
                     </article>
@@ -325,7 +530,7 @@ export default function App() {
       ) : (
         <div className="page-shell detail-page-shell">
           <section className="section section--compact">
-            <a href="#/" className="btn-back" onClick={(e) => { e.preventDefault(); setSelectedCandidate(null); }}>
+            <a href="/" className="btn-back" onClick={(e) => { e.preventDefault(); closeCandidateDetails(); }}>
               <i className="fa-solid fa-arrow-left"></i> Retour aux candidates
             </a>
           </section>
@@ -339,6 +544,11 @@ export default function App() {
 
                 <div className="info-section glass-card">
                   <div className="candidate-header">
+                    <img
+                      src={selectedCandidate.photo_url || 'https://via.placeholder.com/400x500'}
+                      alt={`Portrait de ${selectedCandidate.name}`}
+                      className="candidate-avatar-mobile"
+                    />
                     <span className="category-tag">MISS</span>
                     <h1 className="candidate-name-large">{selectedCandidate.name}</h1>
                   </div>
@@ -376,9 +586,14 @@ export default function App() {
                     </div>
                   </div>
 
-                  <button type="button" className="button button--large" onClick={() => handleVoteClick(selectedCandidate)}>
-                    <i className="fa-solid fa-heart"></i> Voter pour {selectedCandidate.name}
-                  </button>
+                  <div className="candidate-detail-actions">
+                    <button type="button" className="button button--large" onClick={() => handleVoteClick(selectedCandidate)}>
+                      <i className="fa-solid fa-heart"></i> Voter pour {selectedCandidate.name}
+                    </button>
+                    <button type="button" className="button button--secondary button--large" onClick={() => shareCandidate(selectedCandidate)}>
+                      <i className="fa-solid fa-share-nodes"></i> Partager sa page
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
