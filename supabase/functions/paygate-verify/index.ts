@@ -123,18 +123,26 @@ serve(async (req: Request) => {
       })
     }
 
+    console.log(`RPC increment_vote_by: candidate=${transaction.candidate_id}, votes=${transaction.vote_count}`)
+    
     const { error: voteError } = await supabase.rpc('increment_vote_by', {
       row_id: transaction.candidate_id,
       vote_amount: transaction.vote_count,
     })
 
     if (voteError) {
-      console.error('Erreur incrémentation paygate-verify :', voteError)
-      return new Response(JSON.stringify({ error: 'Impossible de comptabiliser le vote après vérification.' }), {
+      console.error('ERREUR RPC increment_vote_by paygate-verify:', {
+        error: voteError,
+        candidate_id: transaction.candidate_id,
+        vote_count: transaction.vote_count,
+      })
+      return new Response(JSON.stringify({ error: 'Impossible de comptabiliser le vote après vérification: ' + voteError.message }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
+    
+    console.log('✅ Vote comptabilisé avec succès')
 
     const { error: updateError } = await supabase
       .from('transactions')

@@ -1,0 +1,182 @@
+[
+  {
+    "numero": 1,
+    "nom": "Awa Coulibaly",
+    "biographie": "Étudiante en robotique...",
+    "age": "22 ans",
+    "taille": "1m78",
+    "poids": "60kg",
+    "photo_locale": "./photos/awa.jpg"
+  },
+  {
+    "numero": 2,
+    "nom": "Sarah Touré",
+    "biographie": "Développeuse web...",
+    "age": "20 ans",
+    "taille": "1m72",
+    "poids": "58kg",
+    "photo_locale": "./photos/sarah.jpg"
+  },
+  {
+    "numero": 3,
+    "nom": "Mariam Diarra",
+    "biographie": "Étudiante en intelligence artificielle...",
+    "age": "21 ans",
+    "taille": "1m75",
+    "poids": "62kg",
+    "photo_locale": "./photos/mariam.jpg"
+  },
+  {
+    "numero": 4,
+    "nom": "Fatoumata Keita",
+    "biographie": "Passionnée de cybersécurité...",
+    "age": "23 ans",
+    "taille": "1m80",
+    "poids": "65kg",
+    "photo_locale": "./photos/fatoumata.jpg"
+  },
+  {
+    "numero": 5,
+    "nom": "Aminata Coulibaly",
+    "biographie": "Étudiante en data science...",
+    "age": "22 ans",
+    "taille": "1m70",
+    "poids": "55kg",
+    "photo_locale": "./photos/aminata.jpg"
+  },
+  {
+    "numero": 6,
+    "nom": "Adama Traoré",
+    "biographie": "Passionné de développement mobile...",
+    "age": "24 ans",
+    "taille": "1m82",
+    "poids": "68kg",
+    "photo_locale": "./photos/adama.jpg"
+  },
+  {
+    "numero": 7,
+    "nom": "Mariama Coulibaly",
+    "biographie": "Étudiante en réalité virtuelle...",
+    "age": "21 ans",
+    "taille": "1m76",
+    "poids": "60kg",
+    "photo_locale": "./photos/mariama.jpg"
+  },
+  {
+    "numero": 8,
+    "nom": "Oumou Diarra",
+    "biographie": "Passionnée de blockchain...",
+    "age": "23 ans",
+    "taille": "1m74",
+    "poids": "63kg",
+    "photo_locale": "./photos/oumou.jpg"
+  },
+  {
+    "numero": 9,
+    "nom": "Aissatou Coulibaly",
+    "biographie": "Étudiante en cybersécurité...",
+    "age": "22 ans",
+    "taille": "1m78",
+    "poids": "59kg",
+    "photo_locale": "./photos/aissatou.jpg"
+  },
+  {
+    "numero": 10,
+    "nom": "Kadiatou Traoré",
+    "biographie": "Passionnée de développement web...",
+    "age": "20 ans",
+    "taille": "1m73",
+    "poids": "57kg",
+    "photo_locale": "./photos/kadiatou.jpg"
+  },
+  {
+    "numero": 11,
+    "nom": "Fanta Coulibaly",
+    "biographie": "Étudiante en intelligence artificielle...",
+    "age": "21 ans",
+    "taille": "1m77",
+    "poids": "61kg",
+    "photo_locale": "./photos/fanta.jpg"
+  },
+  {
+    "numero": 12,
+    "nom": "Aminata Diarra",
+    "biographie": "Passionnée de développement mobile...",
+    "age": "24 ans",
+    "taille": "1m81",
+    "poids": "67kg",
+    "photo_locale": "./photos/aminata_diarra.jpg"
+  },
+  {
+    "numero": 13,
+    "nom": "Mariama Keita",
+    "biographie": "Étudiante en réalité virtuelle...",
+    "age": "21 ans",
+    "taille": "1m75",
+    "poids": "62kg",
+    "photo_locale": "./photos/mariama_keita.jpg"
+  },
+  {
+    "numero": 14,
+    "nom": "Oumou Coulibaly",
+    "biographie": "Passionnée de blockchain...",
+    "age": "23 ans",
+    "taille": "1m73",
+    "poids": "64kg",
+    "photo_locale": "./photos/oumou_coulibaly.jpg"
+  },
+  {
+    "numero": 15,
+    "nom": "Aissatou Diarra",
+    "biographie": "Étudiante en cybersécurité...",
+    "age": "22 ans",
+    "taille": "1m79",
+    "poids": "60kg",
+    "photo_locale": "./photos/aissatou_diarra.jpg"
+  },
+  {
+    "numero": 16,
+    "nom": "Kadiatou Coulibaly",
+    "biographie": "Passionnée de développement web...",
+    "age": "20 ans",
+    "taille": "1m74",
+    "poids": "58kg",
+    "photo_locale": "./photos/kadiatou_coulibaly.jpg"
+  },
+  {
+    "numero": 17,
+    "nom": "Fanta Diarra",
+    "biographie": "Étudiante en intelligence artificielle...",
+    "age": "21 ans",
+    "taille": "1m78",
+    "poids": "61kg",
+    "photo_locale": "./photos/fanta_diarra.jpg"
+  },
+  {
+    "numero": 18,
+    "nom": "Aminata Keita",
+    "biographie": "Passionnée de développement mobile...",
+    "age": "24 ans",
+    "taille": "1m80",
+    "poids": "66kg",
+    "photo_locale": "./photos/aminata_keita.jpg"
+  },
+  {
+    "numero": 19,
+    "nom": "Mariama Coulibaly",
+    "biographie": "Étudiante en réalité virtuelle...",
+    "age": "21 ans",
+    "taille": "1m76",
+    "poids": "62kg",
+    "photo_locale": "./photos/mariama_coulibaly.jpg"
+  },
+  {
+    "numero": 20,
+    "nom": "Oumou Keita",
+    "biographie": "Passionnée de blockchain...",
+    "age": "23 ans",
+    "taille": "1m74",
+    "poids": "63kg",
+    "photo_locale": "./photos/oumou_keita.jpg"
+  }
+]

@@ -39,6 +39,16 @@ serve(async (req: Request) => {
       })
     }
 
+    // Valider que candidateId est un UUID valide
+    const candidateIdStr = candidateId.toString().trim()
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(candidateIdStr)) {
+      return new Response(JSON.stringify({ error: `candidateId invalide: "${candidateIdStr}" n'est pas un UUID valide.` }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     if (!validNetworks.includes(network)) {
       return new Response(JSON.stringify({ error: 'Réseau invalide. Utilisez TMONEY ou FLOOZ.' }), {
         status: 400,
@@ -106,19 +116,26 @@ serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     const txReference = result.tx_reference ?? result.reference ?? identifier
+    
+    console.log(`Sauvegarde transaction: ref=${txReference}, id=${candidateIdStr}, votes=${numberOfVotes}`)
+    
     const { error: saveError } = await supabase.from('transactions').insert([
       {
         transaction_ref: txReference,
         identifier,
-        candidate_id: candidateId,
+        candidate_id: candidateIdStr,
         amount: amountNumber,
         vote_count: numberOfVotes,
         status: 'pending',
       },
-    ], { upsert: true, onConflict: ['transaction_ref', 'identifier'] })
+    ])
 
     if (saveError) {
-      console.warn('Impossible d’enregistrer la transaction PayGate en attente :', saveError)
+      console.error('ERREUR: Impossible d'enregistrer la transaction PayGate:', saveError)
+      return new Response(JSON.stringify({ error: 'Erreur sauvegarde transaction: ' + saveError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
 
     return new Response(JSON.stringify({
