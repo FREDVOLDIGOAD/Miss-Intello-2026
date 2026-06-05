@@ -60,9 +60,9 @@ export default function App() {
 
     const totalAmount = numberOfVotes * PRICE_PER_VOTE;
 
-    const { data, error } = await supabase.functions.invoke('paygate-pay', {
+    const { data, error } = await supabase.functions.invoke('paygate-init', {
       body: {
-        phone: mobilePhoneNumber,
+        phoneNumber: mobilePhoneNumber,
         amount: totalAmount,
         network: paymentNetwork,
         candidateId: candidate.id,
